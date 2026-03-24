@@ -101,10 +101,6 @@
     }
     tr.called { background: #f0faf0; }
 
-    /* Checkmark */
-    .check { color: #34c759; font-size: 1.3rem; font-weight: bold; }
-    .not-called { color: #ccc; font-size: 1.3rem; }
-
     /* Call back checkbox */
     .cb-cell input[type="checkbox"] {
       width: 22px;
@@ -129,9 +125,8 @@
       border: none;
       cursor: pointer;
     }
-    .call-btn.disabled {
-      background: #ccc;
-      pointer-events: none;
+    .call-btn.called {
+      background: #aaa;
     }
   </style>
 </head>
@@ -188,7 +183,7 @@ function render() {
 
   // Filter
   const displayRows = filterCallBacks
-    ? rows.map((r, i) => ({ ...r, _origIdx: i })).filter(r => r._callBack && !r._called)
+    ? rows.map((r, i) => ({ ...r, _origIdx: i })).filter(r => r._callBack)
     : rows.map((r, i) => ({ ...r, _origIdx: i }));
 
   app.innerHTML = `
@@ -197,6 +192,7 @@ function render() {
       <button class="btn-filter ${filterCallBacks ? 'active' : ''}" id="filterBtn">
         ${filterCallBacks ? 'Show All' : 'Show Call Backs Only'}
       </button>
+      <button class="btn-filter" id="exportBtn">Export Call Backs</button>
       <button class="btn-danger" id="clearBtn">Clear Data</button>
       <div class="stats">${calledCount}/${totalRows} called &middot; ${callBackCount} call backs</div>
     </div>
@@ -205,7 +201,6 @@ function render() {
         <thead>
           <tr>
             <th>Action</th>
-            <th>Status</th>
             <th>Call Back</th>
             ${headers.map(h => `<th>${esc(h)}</th>`).join('')}
           </tr>
@@ -217,11 +212,10 @@ function render() {
             const cleanPhone = phone.replace(/[^+\d]/g, '');
             return `<tr class="${row._called ? 'called' : ''}">
               <td>
-                <a href="tel:${cleanPhone}" class="call-btn ${row._called ? 'disabled' : ''}" data-idx="${idx}" data-action="call">
+                <a href="tel:${cleanPhone}" class="call-btn ${row._called ? 'called' : ''}" data-idx="${idx}" data-action="call">
                   ${row._called ? 'Called' : 'Call'}
                 </a>
               </td>
-              <td>${row._called ? '<span class="check">✓</span>' : '<span class="not-called">○</span>'}</td>
               <td class="cb-cell"><input type="checkbox" data-idx="${idx}" data-field="callBack" ${row._callBack ? 'checked' : ''}></td>
               ${row.data.map(cell => `<td>${esc(cell)}</td>`).join('')}
             </tr>`;
@@ -250,12 +244,30 @@ function render() {
     btn.addEventListener('click', (e) => {
       const idx = parseInt(btn.dataset.idx);
       const st = loadState();
-      if (!st.rows[idx]._called) {
-        st.rows[idx]._called = true;
-        saveState(st);
-        render();
-      }
+      st.rows[idx]._called = true;
+      saveState(st);
+      render();
     });
+  });
+
+  // Event: export call backs
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const st = loadState();
+    if (!st) return;
+    const cbRows = st.rows.filter(r => r._callBack);
+    if (cbRows.length === 0) {
+      alert('No call backs to export.');
+      return;
+    }
+    const csvData = [st.headers, ...cbRows.map(r => r.data)];
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'call_backs.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   });
 
   // Event: checkboxes
