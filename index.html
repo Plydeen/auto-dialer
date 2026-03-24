@@ -14,6 +14,8 @@
       color: #222;
       padding: 16px;
       padding-bottom: 80px;
+      position: relative;
+      min-height: 100vh;
     }
     h1 { font-size: 1.4rem; margin-bottom: 12px; }
     .upload-area {
@@ -36,6 +38,22 @@
     }
     .upload-area input { display: none; }
     .error { color: #d32f2f; font-weight: 600; margin-top: 8px; }
+    .upload-footer {
+      position: absolute;
+      bottom: 16px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #999;
+    }
+    .upload-footer a {
+      color: #007aff;
+      text-decoration: none;
+    }
+    .upload-footer a:active {
+      opacity: 0.7;
+    }
 
     /* Toolbar */
     .toolbar {
@@ -167,6 +185,7 @@ function render() {
         <label for="csvInput">Choose CSV File</label>
         <input type="file" id="csvInput" accept=".csv">
         <div id="uploadError" class="error"></div>
+        <div class="upload-footer">By <a href="https://buttonscale.com" target="_blank">Buttonscale</a></div>
       </div>
     `;
     document.getElementById('csvInput').addEventListener('change', handleFile);
