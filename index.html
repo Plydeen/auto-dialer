@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Dialer</title>
+  <link rel="icon" type="image/png" href="Gemini_Generated_Image_98iaak98iaak98ia.png">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      padding: 16px;
+      padding-bottom: 80px;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 12px; }
+    .upload-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 16px;
+    }
+    .upload-area label {
+      display: inline-block;
+      background: #007aff;
+      color: #fff;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .upload-area input { display: none; }
+    .error { color: #d32f2f; font-weight: 600; margin-top: 8px; }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    .toolbar button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 44px;
+    }
+    .btn-filter {
+      background: #007aff;
+      color: #fff;
+    }
+    .btn-filter.active {
+      background: #ff9500;
+    }
+    .btn-danger {
+      background: #ff3b30;
+      color: #fff;
+      margin-left: auto;
+    }
+    .stats {
+      width: 100%;
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      white-space: nowrap;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background: #fafafa;
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    tr.called { background: #f0faf0; }
+
+    /* Checkmark */
+    .check { color: #34c759; font-size: 1.3rem; font-weight: bold; }
+    .not-called { color: #ccc; font-size: 1.3rem; }
+
+    /* Call back checkbox */
+    .cb-cell input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+    }
+
+    /* Call button */
+    .call-btn {
+      display: inline-block;
+      background: #34c759;
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-decoration: none;
+      min-height: 44px;
+      min-width: 44px;
+      line-height: 28px;
+      text-align: center;
+      border: none;
+      cursor: pointer;
+    }
+    .call-btn.disabled {
+      background: #ccc;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+const STORAGE_KEY = 'autoDialerData';
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function clearState() {
+  localStorage.removeItem(STORAGE_KEY);
+  render();
+}
+
+let filterCallBacks = false;
+
+function render() {
+  const state = loadState();
+  const app = document.getElementById('app');
+
+  if (!state) {
+    app.innerHTML = `
+      <div class="upload-area">
+        <h1>Auto Dialer</h1>
+        <p>Upload a CSV with a <strong>Phone</strong> column to get started.</p>
+        <label for="csvInput">Choose CSV File</label>
+        <input type="file" id="csvInput" accept=".csv">
+        <div id="uploadError" class="error"></div>
+      </div>
+    `;
+    document.getElementById('csvInput').addEventListener('change', handleFile);
+    return;
+  }
+
+  const { headers, rows } = state;
+  const phoneIdx = headers.findIndex(h => h.toLowerCase().trim() === 'phone');
+
+  // Stats
+  const totalRows = rows.length;
+  const calledCount = rows.filter(r => r._called).length;
+  const callBackCount = rows.filter(r => r._callBack).length;
+
+  // Filter
+  const displayRows = filterCallBacks
+    ? rows.map((r, i) => ({ ...r, _origIdx: i })).filter(r => r._callBack && !r._called)
+    : rows.map((r, i) => ({ ...r, _origIdx: i }));
+
+  app.innerHTML = `
+    <h1>Auto Dialer</h1>
+    <div class="toolbar">
+      <button class="btn-filter ${filterCallBacks ? 'active' : ''}" id="filterBtn">
+        ${filterCallBacks ? 'Show All' : 'Show Call Backs Only'}
+      </button>
+      <button class="btn-danger" id="clearBtn">Clear Data</button>
+      <div class="stats">${calledCount}/${totalRows} called &middot; ${callBackCount} call backs</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Call Back</th>
+            ${headers.map(h => `<th>${esc(h)}</th>`).join('')}
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${displayRows.map(row => {
+            const idx = row._origIdx;
+            const phone = row.data[phoneIdx] || '';
+            const cleanPhone = phone.replace(/[^+\d]/g, '');
+            return `<tr class="${row._called ? 'called' : ''}">
+              <td>${row._called ? '<span class="check">✓</span>' : '<span class="not-called">○</span>'}</td>
+              <td class="cb-cell"><input type="checkbox" data-idx="${idx}" data-field="callBack" ${row._callBack ? 'checked' : ''}></td>
+              ${row.data.map(cell => `<td>${esc(cell)}</td>`).join('')}
+              <td>
+                <a href="tel:${cleanPhone}" class="call-btn ${row._called ? 'disabled' : ''}" data-idx="${idx}" data-action="call">
+                  ${row._called ? 'Called' : 'Call'}
+                </a>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Event: filter toggle
+  document.getElementById('filterBtn').addEventListener('click', () => {
+    filterCallBacks = !filterCallBacks;
+    render();
+  });
+
+  // Event: clear
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    if (confirm('Clear all data and start over?')) {
+      filterCallBacks = false;
+      clearState();
+    }
+  });
+
+  // Event: call buttons
+  document.querySelectorAll('[data-action="call"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(btn.dataset.idx);
+      const st = loadState();
+      if (!st.rows[idx]._called) {
+        st.rows[idx]._called = true;
+        saveState(st);
+        render();
+      }
+    });
+  });
+
+  // Event: checkboxes
+  document.querySelectorAll('[data-field="callBack"]').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const idx = parseInt(cb.dataset.idx);
+      const st = loadState();
+      st.rows[idx]._callBack = cb.checked;
+      saveState(st);
+      render();
+    });
+  });
+}
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  Papa.parse(file, {
+    header: false,
+    skipEmptyLines: true,
+    complete(results) {
+      const errEl = document.getElementById('uploadError');
+      if (!results.data || results.data.length < 2) {
+        errEl.textContent = 'CSV appears empty or has no data rows.';
+        return;
+      }
+
+      const headers = results.data[0].map(h => h.trim());
+      const phoneIdx = headers.findIndex(h => h.toLowerCase() === 'phone');
+      if (phoneIdx === -1) {
+        errEl.textContent = 'No "Phone" column found. Please check your CSV headers.';
+        return;
+      }
+
+      const rows = results.data.slice(1).map(row => ({
+        data: row,
+        _called: false,
+        _callBack: false
+      }));
+
+      saveState({ headers, rows });
+      render();
+    },
+    error() {
+      document.getElementById('uploadError').textContent = 'Failed to parse CSV file.';
+    }
+  });
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+// Init
+render();
+</script>
+</body>
+</html>
