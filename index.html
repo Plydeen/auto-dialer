@@ -204,10 +204,10 @@ function render() {
       <table>
         <thead>
           <tr>
+            <th>Action</th>
             <th>Status</th>
             <th>Call Back</th>
             ${headers.map(h => `<th>${esc(h)}</th>`).join('')}
-            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -216,14 +216,14 @@ function render() {
             const phone = row.data[phoneIdx] || '';
             const cleanPhone = phone.replace(/[^+\d]/g, '');
             return `<tr class="${row._called ? 'called' : ''}">
-              <td>${row._called ? '<span class="check">✓</span>' : '<span class="not-called">○</span>'}</td>
-              <td class="cb-cell"><input type="checkbox" data-idx="${idx}" data-field="callBack" ${row._callBack ? 'checked' : ''}></td>
-              ${row.data.map(cell => `<td>${esc(cell)}</td>`).join('')}
               <td>
                 <a href="tel:${cleanPhone}" class="call-btn ${row._called ? 'disabled' : ''}" data-idx="${idx}" data-action="call">
                   ${row._called ? 'Called' : 'Call'}
                 </a>
               </td>
+              <td>${row._called ? '<span class="check">✓</span>' : '<span class="not-called">○</span>'}</td>
+              <td class="cb-cell"><input type="checkbox" data-idx="${idx}" data-field="callBack" ${row._callBack ? 'checked' : ''}></td>
+              ${row.data.map(cell => `<td>${esc(cell)}</td>`).join('')}
             </tr>`;
           }).join('')}
         </tbody>
